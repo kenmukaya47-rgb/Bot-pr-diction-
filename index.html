@@ -2,85 +2,46 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Bot de Précision Trading</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>Bot Rapide Trading</title>
   <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #00c6ff, #0072ff);
-      color: #fff;
-      text-align: center;
-      padding: 40px;
-      animation: fadeIn 2s ease-in-out;
-    }
-    h2 { font-size: 32px; margin-bottom: 20px; text-shadow: 2px 2px 5px rgba(0,0,0,0.3); }
-    .bloc {
-      background: rgba(255,255,255,0.1);
-      padding: 20px;
-      margin: 20px auto;
-      border-radius: 12px;
-      width: 90%;
-      max-width: 900px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-      backdrop-filter: blur(10px);
-      animation: slideUp 1.5s ease;
-    }
-    button {
-      margin-top: 20px;
-      padding: 12px 25px;
-      background: #ffcc00;
-      color: #333;
-      font-weight: bold;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: transform 0.2s, background 0.3s;
-    }
-    button:hover { transform: scale(1.1); background: #ff9900; }
-    #resultat { font-size: 26px; font-weight: bold; margin-top: 15px; animation: pulse 1.5s infinite; }
-    canvas { margin-top: 20px; background: rgba(255,255,255,0.05); border-radius: 10px; }
-    @keyframes fadeIn { from {opacity: 0;} to {opacity: 1;} }
-    @keyframes slideUp { from {transform: translateY(50px); opacity: 0;} to {transform: translateY(0); opacity: 1;} }
-    @keyframes pulse { 0% {color: #fff;} 50% {color: #ffcc00;} 100% {color: #fff;} }
+    body { font-family: Arial; background: #111; color: #fff; text-align: center; padding: 40px; }
+    h2 { color: #ffcc00; }
+    .bloc { background: #222; padding: 20px; border-radius: 10px; width: 300px; margin: auto; }
+    button { padding: 10px 20px; background: #ffcc00; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background: #ffaa00; }
+    #resultat { font-size: 24px; margin-top: 20px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>🚀 Bot de Précision - Analyse Marché</h2>
+  <h2>⚡ Bot Rapide - Analyse Express</h2>
   
   <div class="bloc">
-    <label>Actif :</label>
-    <input type="text" id="asset" value="BTCUSDT"><br>
+    <label>Actif :</label><br>
+    <input type="text" id="asset" value="BTCUSDT"><br><br>
     
-    <label>Durée (secondes) :</label>
-    <input type="number" id="duration" value="10"><br>
+    <label>Durée (secondes) :</label><br>
+    <input type="number" id="duration" value="5"><br><br>
     
     <button onclick="analyser()">Analyser</button>
-  </div>
-  
-  <div class="bloc">
-    <h3>Résultat : <span id="resultat"></span></h3>
-    <canvas id="chartPrice" height="200"></canvas>
-    <canvas id="chartRSI" height="200"></canvas>
-    <canvas id="chartMACD" height="200"></canvas>
-    <canvas id="chartStoch" height="200"></canvas>
+    <div id="resultat"></div>
   </div>
 
   <script>
     // RSI
-    function calculRSI(prices, period = 14) {
+    function calculRSI(prices, period = 5) {
       let gains = 0, losses = 0;
       for (let i = 1; i < period; i++) {
         let diff = prices[i] - prices[i-1];
-        if (diff >= 0) gains += diff;
-        else losses -= diff;
+        if (diff >= 0) gains += diff; else losses -= diff;
       }
       let avgGain = gains / period;
       let avgLoss = losses / period;
       let rs = avgGain / avgLoss;
       return 100 - (100 / (1 + rs));
     }
+
     // EMA
-    function calculEMA(prices, period = 10) {
+    function calculEMA(prices, period = 5) {
       let k = 2 / (period + 1);
       let ema = prices[0];
       for (let i = 1; i < prices.length; i++) {
@@ -88,82 +49,52 @@
       }
       return ema;
     }
-    // MACD
-    function calculMACD(prices, shortPeriod = 12, longPeriod = 26, signalPeriod = 9) {
-      let emaShort = calculEMA(prices, shortPeriod);
-      let emaLong = calculEMA(prices, longPeriod);
-      let macd = emaShort - emaLong;
-      let signal = calculEMA([macd], signalPeriod);
-      return { macd, signal };
-    }
-    // Bollinger
-    function calculBollinger(prices, period = 20, mult = 2) {
-      let slice = prices.slice(-period);
-      let mean = slice.reduce((a,b) => a+b, 0) / period;
-      let variance = slice.reduce((a,b) => a + Math.pow(b-mean,2), 0) / period;
-      let stdDev = Math.sqrt(variance);
-      return { upper: mean + mult*stdDev, lower: mean - mult*stdDev };
-    }
-    // Stochastic Oscillator
-    function calculStoch(prices, period = 14) {
+
+    // Stochastic
+    function calculStoch(prices, period = 5) {
       let slice = prices.slice(-period);
       let high = Math.max(...slice);
       let low = Math.min(...slice);
       let current = prices[prices.length-1];
       return ((current - low) / (high - low)) * 100;
     }
-    // ATR (volatilité)
-    function calculATR(data, period = 14) {
-      let trs = [];
-      for (let i = 1; i < data.length; i++) {
-        let high = parseFloat(data[i][2]);
-        let low = parseFloat(data[i][3]);
-        let closePrev = parseFloat(data[i-1][4]);
-        let tr = Math.max(high-low, Math.abs(high-closePrev), Math.abs(low-closePrev));
-        trs.push(tr);
-      }
-      return trs.slice(-period).reduce((a,b)=>a+b,0)/period;
+
+    // Bollinger
+    function calculBollinger(prices, period = 5, mult = 2) {
+      let slice = prices.slice(-period);
+      let mean = slice.reduce((a,b) => a+b, 0) / period;
+      let variance = slice.reduce((a,b) => a + Math.pow(b-mean,2), 0) / period;
+      let stdDev = Math.sqrt(variance);
+      return { upper: mean + mult*stdDev, lower: mean - mult*stdDev };
     }
 
     async function analyser() {
       let asset = document.getElementById("asset").value;
-      let response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${asset}&interval=1m&limit=50`);
+      let response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${asset}&interval=1m&limit=10`);
       let data = await response.json();
       let prices = data.map(candle => parseFloat(candle[4]));
       let currentPrice = prices[prices.length-1];
 
       let rsi = calculRSI(prices);
       let ema = calculEMA(prices);
-      let macdObj = calculMACD(prices);
-      let boll = calculBollinger(prices);
       let stoch = calculStoch(prices);
-      let atr = calculATR(data);
+      let boll = calculBollinger(prices);
 
-      // Système de vote multi-indicateurs
-      let votesAcheter = 0, votesVendre = 0;
-      if (rsi < 30) votesAcheter++; if (rsi > 70) votesVendre++;
-      if (currentPrice > ema) votesAcheter++; else votesVendre++;
-      if (macdObj.macd > macdObj.signal) votesAcheter++; else votesVendre++;
-      if (currentPrice < boll.lower) votesAcheter++; if (currentPrice > boll.upper) votesVendre++;
-      if (stoch < 20) votesAcheter++; if (stoch > 80) votesVendre++;
-      if (atr > 0.5) { /* volatilité élevée → prudence */ }
-
+      // Système de décision rapide
       let decision = "Attente";
-      if (votesAcheter >= 3) decision = "Acheter";
-      else if (votesVendre >= 3) decision = "Vendre";
+      if (rsi < 30 && stoch < 20 && currentPrice > ema && currentPrice < boll.lower) {
+        decision = "Acheter";
+      } else if (rsi > 70 && stoch > 80 && currentPrice < ema && currentPrice > boll.upper) {
+        decision = "Vendre";
+      }
 
-      document.getElementById("resultat").innerText = decision;
-
-      // Graphiques
-      new Chart(document.getElementById('chartPrice'), {
-        type: 'line',
-        data: {
-          labels: prices.map((_,i)=>i),
-          datasets: [
-            { label: 'Prix', data: prices, borderColor: '#fff', fill: false },
-            { label: 'EMA', data: prices.map(()=>ema), borderColor: '#ffcc00', fill: false },
-            { label: 'Bollinger Haut', data: prices.map(()=>boll.upper), borderColor: '#00ff00', borderDash:[5,5], fill: false },
-            { label: 'Bollinger Bas', data: prices.map(()=>boll.lower), borderColor: '#ff0000', borderDash:[5,5], fill: false }
-          ]
-        },
-        options: { plugins: { legend: { labels: { color: '#fff' } } }, scales: { x: { ticks: { color: '#fff'} }, y: {
+      // Affichage avec couleur
+      let res = document.getElementById("resultat");
+      res.innerText = decision;
+      if (decision === "Acheter") res.style.color = "lime";
+      else if (decision === "Vendre") res.style.color = "red";
+      else res.style.color = "yellow";
+    }
+  </script>
+</body>
+</html>
