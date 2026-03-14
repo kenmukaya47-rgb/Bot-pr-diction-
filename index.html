@@ -23,7 +23,7 @@
     }
     @keyframes spin { 100% { transform: rotate(360deg); } }
 
-    select, input {
+    select {
       padding: 10px; border-radius: 8px; border: none; margin: 10px;
       background: #222; color: #fff;
     }
@@ -58,7 +58,7 @@
   </div>
 
   <script>
-    // Fonctions indicateurs (RSI, EMA, Stoch, Bollinger, MACD, ATR)
+    // RSI
     function calculRSI(prices, period = 5) {
       let gains = 0, losses = 0;
       for (let i = 1; i < period; i++) {
@@ -70,6 +70,7 @@
       let rs = avgGain / avgLoss;
       return 100 - (100 / (1 + rs));
     }
+    // EMA
     function calculEMA(prices, period = 5) {
       let k = 2 / (period + 1);
       let ema = prices[0];
@@ -78,6 +79,7 @@
       }
       return ema;
     }
+    // Stochastic
     function calculStoch(prices, period = 5) {
       let slice = prices.slice(-period);
       let high = Math.max(...slice);
@@ -85,6 +87,7 @@
       let current = prices[prices.length-1];
       return ((current - low) / (high - low)) * 100;
     }
+    // Bollinger
     function calculBollinger(prices, period = 5, mult = 2) {
       let slice = prices.slice(-period);
       let mean = slice.reduce((a,b) => a+b, 0) / period;
@@ -92,6 +95,7 @@
       let stdDev = Math.sqrt(variance);
       return { upper: mean + mult*stdDev, lower: mean - mult*stdDev };
     }
+    // MACD
     function calculMACD(prices, shortPeriod = 12, longPeriod = 26, signalPeriod = 9) {
       let emaShort = calculEMA(prices, shortPeriod);
       let emaLong = calculEMA(prices, longPeriod);
@@ -99,6 +103,7 @@
       let signal = calculEMA([macd], signalPeriod);
       return { macd, signal };
     }
+    // ATR
     function calculATR(data, period = 14) {
       let trs = [];
       for (let i = 1; i < data.length; i++) {
@@ -113,42 +118,50 @@
 
     async function analyser() {
       let asset = document.getElementById("asset").value;
-      let response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${asset}&interval=1m&limit=20`);
-      let data = await response.json();
-      let prices = data.map(candle => parseFloat(candle[4]));
-      let currentPrice = prices[prices.length-1];
-
-      let rsi = calculRSI(prices);
-      let ema = calculEMA(prices);
-      let stoch = calculStoch(prices);
-      let boll = calculBollinger(prices);
-      let macdObj = calculMACD(prices);
-      let atr = calculATR(data);
-
-      // Afficher tableau d'analyse
-      document.getElementById("analyse").innerHTML = `
-        <b>RSI:</b> ${rsi.toFixed(2)}<br>
-        <b>EMA:</b> ${ema.toFixed(2)}<br>
-        <b>Stochastic:</b> ${stoch.toFixed(2)}<br>
-        <b>Bollinger Haut:</b> ${boll.upper.toFixed(2)} | <b>Bas:</b> ${boll.lower.toFixed(2)}<br>
-        <b>MACD:</b> ${macdObj.macd.toFixed(2)} | <b>Signal:</b> ${macdObj.signal.toFixed(2)}<br>
-        <b>ATR:</b> ${atr.toFixed(2)}
-      `;
-
-      // Système de vote
-      let votesAcheter = 0, votesVendre = 0;
-      if (rsi < 40) votesAcheter++; if (rsi > 60) votesVendre++;
-      if (stoch < 30) votesAcheter++; if (stoch > 70) votesVendre++;
-      if (currentPrice > ema) votesAcheter++; else votesVendre++;
-      if (currentPrice < boll.lower) votesAcheter++; if (currentPrice > boll.upper) votesVendre++;
-      if (macdObj.macd > macdObj.signal) votesAcheter++; else votesVendre++;
-
-      let decision = "Attente";
-      if (votesAcheter >= 3) decision = "Acheter";
-      else if (votesVendre >= 3) decision = "Vendre";
-
-      // Affichage avec couleur et effet
       let res = document.getElementById("resultat");
-      res.innerText = decision;
-      if (decision === "Acheter") res.style.color = "lime";
-      else if (decision === "Vendre") res
+      res.innerText = "Analyse en cours...";
+      res.style.color = "cyan";
+
+      try {
+        let response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${asset}&interval=1m&limit=20`);
+        if (!response.ok) throw new Error("API non disponible");
+        let data = await response.json();
+        let prices = data.map(candle => parseFloat(candle[4]));
+        let currentPrice = prices[prices.length-1];
+
+        let rsi = calculRSI(prices);
+        let ema = calculEMA(prices);
+        let stoch = calculStoch(prices);
+        let boll = calculBollinger(prices);
+        let macdObj = calculMACD(prices);
+        let atr = calculATR(data);
+
+        // Tableau d'analyse
+        document.getElementById("analyse").innerHTML = `
+          <b>RSI:</b> ${rsi.toFixed(2)}<br>
+          <b>EMA:</b> ${ema.toFixed(2)}<br>
+          <b>Stochastic:</b> ${stoch.toFixed(2)}<br>
+          <b>Bollinger Haut:</b> ${boll.upper.toFixed(2)} | <b>Bas:</b> ${boll.lower.toFixed(2)}<br>
+          <b>MACD:</b> ${macdObj.macd.toFixed(2)} | <b>Signal:</b> ${macdObj.signal.toFixed(2)}<br>
+          <b>ATR:</b> ${atr.toFixed(2)}
+        `;
+
+        // Vote souple
+        let votesAcheter = 0, votesVendre = 0;
+        if (rsi < 40) votesAcheter++; if (rsi > 60) votesVendre++;
+        if (stoch < 30) votesAcheter++; if (stoch > 70) votesVendre++;
+        if (currentPrice > ema) votesAcheter++; else votesVendre++;
+        if (currentPrice < boll.lower) votesAcheter++; if (currentPrice > boll.upper) votesVendre++;
+        if (macdObj.macd > macdObj.signal) votesAcheter++; else votesVendre++;
+
+        let decision = "Attente";
+        if (votesAcheter >= 2) decision = "Acheter";
+        else if (votesVendre >= 2) decision = "Vendre";
+
+        res.innerText = decision;
+        res.style.color = decision === "Acheter" ? "lime" : decision === "Vendre" ? "red" : "yellow";
+
+      } catch (err) {
+        res.innerText = "Erreur: " + err.message;
+        res.style.color = "orange";
+      }
