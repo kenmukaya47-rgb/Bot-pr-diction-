@@ -52,7 +52,7 @@
     <input type="text" id="asset" value="BTCUSDT"><br>
     
     <label>Durée (secondes) :</label>
-    <input type="number" id="duration" value="60"><br>
+    <input type="number" id="duration" value="10"><br>
     
     <button onclick="analyser()">Analyser</button>
   </div>
@@ -62,6 +62,7 @@
     <canvas id="chartPrice" height="200"></canvas>
     <canvas id="chartRSI" height="200"></canvas>
     <canvas id="chartMACD" height="200"></canvas>
+    <canvas id="chartStoch" height="200"></canvas>
   </div>
 
   <script>
@@ -103,6 +104,26 @@
       let stdDev = Math.sqrt(variance);
       return { upper: mean + mult*stdDev, lower: mean - mult*stdDev };
     }
+    // Stochastic Oscillator
+    function calculStoch(prices, period = 14) {
+      let slice = prices.slice(-period);
+      let high = Math.max(...slice);
+      let low = Math.min(...slice);
+      let current = prices[prices.length-1];
+      return ((current - low) / (high - low)) * 100;
+    }
+    // ATR (volatilité)
+    function calculATR(data, period = 14) {
+      let trs = [];
+      for (let i = 1; i < data.length; i++) {
+        let high = parseFloat(data[i][2]);
+        let low = parseFloat(data[i][3]);
+        let closePrev = parseFloat(data[i-1][4]);
+        let tr = Math.max(high-low, Math.abs(high-closePrev), Math.abs(low-closePrev));
+        trs.push(tr);
+      }
+      return trs.slice(-period).reduce((a,b)=>a+b,0)/period;
+    }
 
     async function analyser() {
       let asset = document.getElementById("asset").value;
@@ -115,16 +136,25 @@
       let ema = calculEMA(prices);
       let macdObj = calculMACD(prices);
       let boll = calculBollinger(prices);
+      let stoch = calculStoch(prices);
+      let atr = calculATR(data);
+
+      // Système de vote multi-indicateurs
+      let votesAcheter = 0, votesVendre = 0;
+      if (rsi < 30) votesAcheter++; if (rsi > 70) votesVendre++;
+      if (currentPrice > ema) votesAcheter++; else votesVendre++;
+      if (macdObj.macd > macdObj.signal) votesAcheter++; else votesVendre++;
+      if (currentPrice < boll.lower) votesAcheter++; if (currentPrice > boll.upper) votesVendre++;
+      if (stoch < 20) votesAcheter++; if (stoch > 80) votesVendre++;
+      if (atr > 0.5) { /* volatilité élevée → prudence */ }
 
       let decision = "Attente";
-      if (rsi < 30 && currentPrice > ema && macdObj.macd > macdObj.signal && currentPrice < boll.lower) {
-        decision = "Acheter";
-      } else if (rsi > 70 && currentPrice < ema && macdObj.macd < macdObj.signal && currentPrice > boll.upper) {
-        decision = "Vendre";
-      }
+      if (votesAcheter >= 3) decision = "Acheter";
+      else if (votesVendre >= 3) decision = "Vendre";
+
       document.getElementById("resultat").innerText = decision;
 
-      // Graphique Prix + Bollinger
+      // Graphiques
       new Chart(document.getElementById('chartPrice'), {
         type: 'line',
         data: {
@@ -136,32 +166,4 @@
             { label: 'Bollinger Bas', data: prices.map(()=>boll.lower), borderColor: '#ff0000', borderDash:[5,5], fill: false }
           ]
         },
-        options: { plugins: { legend: { labels: { color: '#fff' } } }, scales: { x: { ticks: { color: '#fff'} }, y: { ticks: { color: '#fff'} } } }
-      });
-
-      // Graphique RSI
-      new Chart(document.getElementById('chartRSI'), {
-        type: 'line',
-        data: {
-          labels: prices.map((_,i)=>i),
-          datasets: [{ label: 'RSI', data: prices.map(()=>rsi), borderColor: '#ffcc00', fill: false }]
-        },
-        options: { plugins: { legend: { labels: { color: '#fff' } } }, scales: { x: { ticks: { color: '#fff'} }, y: { ticks: { color: '#fff'} } } }
-      });
-
-      // Graphique MACD
-      new Chart(document.getElementById('chartMACD'), {
-        type: 'line',
-        data: {
-          labels: prices.map((_,i)=>i),
-          datasets: [
-            { label: 'MACD', data: prices.map(()=>macdObj.macd), borderColor: '#00ff00', fill: false },
-            { label: 'Signal', data: prices.map(()=>macdObj.signal), borderColor: '#ff0000', fill: false }
-          ]
-        },
-        options: { plugins: { legend: { labels: { color: '#fff' } } }, scales: { x: { ticks: { color: '#fff'} }, y: { ticks: { color: '#fff'} } } }
-      });
-    }
-  </script>
-</body>
-</html>
+        options: { plugins: { legend: { labels: { color: '#fff' } } }, scales: { x: { ticks: { color: '#fff'} }, y: {
