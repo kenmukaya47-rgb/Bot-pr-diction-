@@ -6,10 +6,23 @@
   <style>
     body { font-family: Arial; background: #111; color: #fff; text-align: center; padding: 40px; }
     h2 { color: #ffcc00; }
-    .bloc { background: #222; padding: 20px; border-radius: 10px; width: 300px; margin: auto; }
-    button { padding: 10px 20px; background: #ffcc00; border: none; border-radius: 5px; cursor: pointer; }
-    button:hover { background: #ffaa00; }
+    .bloc { background: #222; padding: 20px; border-radius: 10px; width: 350px; margin: auto; }
+    
+    /* Bouton rond animé */
+    .btn-analyser {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: conic-gradient(red, yellow, lime, cyan, magenta, red);
+      border: none;
+      cursor: pointer;
+      animation: spin 3s linear infinite;
+      font-weight: bold;
+      color: #111;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    
     #resultat { font-size: 24px; margin-top: 20px; font-weight: bold; }
+    #analyse { margin-top: 20px; text-align: left; font-size: 14px; background:#333; padding:10px; border-radius:8px; }
   </style>
 </head>
 <body>
@@ -22,7 +35,8 @@
     <label>Durée (secondes) :</label><br>
     <input type="number" id="duration" value="5"><br><br>
     
-    <button onclick="analyser()">Analyser</button>
+    <button class="btn-analyser" onclick="analyser()">Go</button>
+    <div id="analyse">En attente d'analyse...</div>
     <div id="resultat"></div>
   </div>
 
@@ -39,7 +53,6 @@
       let rs = avgGain / avgLoss;
       return 100 - (100 / (1 + rs));
     }
-
     // EMA
     function calculEMA(prices, period = 5) {
       let k = 2 / (period + 1);
@@ -49,7 +62,6 @@
       }
       return ema;
     }
-
     // Stochastic
     function calculStoch(prices, period = 5) {
       let slice = prices.slice(-period);
@@ -58,7 +70,6 @@
       let current = prices[prices.length-1];
       return ((current - low) / (high - low)) * 100;
     }
-
     // Bollinger
     function calculBollinger(prices, period = 5, mult = 2) {
       let slice = prices.slice(-period);
@@ -67,10 +78,30 @@
       let stdDev = Math.sqrt(variance);
       return { upper: mean + mult*stdDev, lower: mean - mult*stdDev };
     }
+    // MACD
+    function calculMACD(prices, shortPeriod = 12, longPeriod = 26, signalPeriod = 9) {
+      let emaShort = calculEMA(prices, shortPeriod);
+      let emaLong = calculEMA(prices, longPeriod);
+      let macd = emaShort - emaLong;
+      let signal = calculEMA([macd], signalPeriod);
+      return { macd, signal };
+    }
+    // ATR
+    function calculATR(data, period = 14) {
+      let trs = [];
+      for (let i = 1; i < data.length; i++) {
+        let high = parseFloat(data[i][2]);
+        let low = parseFloat(data[i][3]);
+        let closePrev = parseFloat(data[i-1][4]);
+        let tr = Math.max(high-low, Math.abs(high-closePrev), Math.abs(low-closePrev));
+        trs.push(tr);
+      }
+      return trs.slice(-period).reduce((a,b)=>a+b,0)/period;
+    }
 
     async function analyser() {
       let asset = document.getElementById("asset").value;
-      let response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${asset}&interval=1m&limit=10`);
+      let response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${asset}&interval=1m&limit=20`);
       let data = await response.json();
       let prices = data.map(candle => parseFloat(candle[4]));
       let currentPrice = prices[prices.length-1];
@@ -79,14 +110,30 @@
       let ema = calculEMA(prices);
       let stoch = calculStoch(prices);
       let boll = calculBollinger(prices);
+      let macdObj = calculMACD(prices);
+      let atr = calculATR(data);
 
-      // Système de décision rapide
+      // Afficher tableau d'analyse
+      document.getElementById("analyse").innerHTML = `
+        <b>RSI:</b> ${rsi.toFixed(2)}<br>
+        <b>EMA:</b> ${ema.toFixed(2)}<br>
+        <b>Stochastic:</b> ${stoch.toFixed(2)}<br>
+        <b>Bollinger Haut:</b> ${boll.upper.toFixed(2)} | <b>Bas:</b> ${boll.lower.toFixed(2)}<br>
+        <b>MACD:</b> ${macdObj.macd.toFixed(2)} | <b>Signal:</b> ${macdObj.signal.toFixed(2)}<br>
+        <b>ATR:</b> ${atr.toFixed(2)}
+      `;
+
+      // Système de vote
+      let votesAcheter = 0, votesVendre = 0;
+      if (rsi < 40) votesAcheter++; if (rsi > 60) votesVendre++;
+      if (stoch < 30) votesAcheter++; if (stoch > 70) votesVendre++;
+      if (currentPrice > ema) votesAcheter++; else votesVendre++;
+      if (currentPrice < boll.lower) votesAcheter++; if (currentPrice > boll.upper) votesVendre++;
+      if (macdObj.macd > macdObj.signal) votesAcheter++; else votesVendre++;
+
       let decision = "Attente";
-      if (rsi < 30 && stoch < 20 && currentPrice > ema && currentPrice < boll.lower) {
-        decision = "Acheter";
-      } else if (rsi > 70 && stoch > 80 && currentPrice < ema && currentPrice > boll.upper) {
-        decision = "Vendre";
-      }
+      if (votesAcheter >= 3) decision = "Acheter";
+      else if (votesVendre >= 3) decision = "Vendre";
 
       // Affichage avec couleur
       let res = document.getElementById("resultat");
