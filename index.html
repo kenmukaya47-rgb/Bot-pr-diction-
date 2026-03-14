@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Bot de Précision Trading</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #00c6ff, #0072ff);
+      color: #fff;
+      text-align: center;
+      padding: 40px;
+      animation: fadeIn 2s ease-in-out;
+    }
+    h2 { font-size: 32px; margin-bottom: 20px; text-shadow: 2px 2px 5px rgba(0,0,0,0.3); }
+    .bloc {
+      background: rgba(255,255,255,0.1);
+      padding: 20px;
+      margin: 20px auto;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 900px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+      backdrop-filter: blur(10px);
+      animation: slideUp 1.5s ease;
+    }
+    button {
+      margin-top: 20px;
+      padding: 12px 25px;
+      background: #ffcc00;
+      color: #333;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s, background 0.3s;
+    }
+    button:hover { transform: scale(1.1); background: #ff9900; }
+    #resultat { font-size: 26px; font-weight: bold; margin-top: 15px; animation: pulse 1.5s infinite; }
+    canvas { margin-top: 20px; background: rgba(255,255,255,0.05); border-radius: 10px; }
+    @keyframes fadeIn { from {opacity: 0;} to {opacity: 1;} }
+    @keyframes slideUp { from {transform: translateY(50px); opacity: 0;} to {transform: translateY(0); opacity: 1;} }
+    @keyframes pulse { 0% {color: #fff;} 50% {color: #ffcc00;} 100% {color: #fff;} }
+  </style>
+</head>
+<body>
+  <h2>🚀 Bot de Précision - Analyse Marché</h2>
+  
+  <div class="bloc">
+    <label>Actif :</label>
+    <input type="text" id="asset" value="BTCUSDT"><br>
+    
+    <label>Durée (secondes) :</label>
+    <input type="number" id="duration" value="60"><br>
+    
+    <button onclick="analyser()">Analyser</button>
+  </div>
+  
+  <div class="bloc">
+    <h3>Résultat : <span id="resultat"></span></h3>
+    <canvas id="chartPrice" height="200"></canvas>
+    <canvas id="chartRSI" height="200"></canvas>
+    <canvas id="chartMACD" height="200"></canvas>
+  </div>
+
+  <script>
+    // RSI
+    function calculRSI(prices, period = 14) {
+      let gains = 0, losses = 0;
+      for (let i = 1; i < period; i++) {
+        let diff = prices[i] - prices[i-1];
+        if (diff >= 0) gains += diff;
+        else losses -= diff;
+      }
+      let avgGain = gains / period;
+      let avgLoss = losses / period;
+      let rs = avgGain / avgLoss;
+      return 100 - (100 / (1 + rs));
+    }
+    // EMA
+    function calculEMA(prices, period = 10) {
+      let k = 2 / (period + 1);
+      let ema = prices[0];
+      for (let i = 1; i < prices.length; i++) {
+        ema = prices[i] * k + ema * (1 - k);
+      }
+      return ema;
+    }
+    // MACD
+    function calculMACD(prices, shortPeriod = 12, longPeriod = 26, signalPeriod = 9) {
+      let emaShort = calculEMA(prices, shortPeriod);
+      let emaLong = calculEMA(prices, longPeriod);
+      let macd = emaShort - emaLong;
+      let signal = calculEMA([macd], signalPeriod);
+      return { macd, signal };
+    }
+    // Bollinger
+    function calculBollinger(prices, period = 20, mult = 2) {
+      let slice = prices.slice(-period);
+      let mean = slice.reduce((a,b) => a+b, 0) / period;
+      let variance = slice.reduce((a,b) => a + Math.pow(b-mean,2), 0) / period;
+      let stdDev = Math.sqrt(variance);
+      return { upper: mean + mult*stdDev, lower: mean - mult*stdDev };
+    }
+
+    async function analyser() {
+      let asset = document.getElementById("asset").value;
+      let response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${asset}&interval=1m&limit=50`);
+      let data = await response.json();
+      let prices = data.map(candle => parseFloat(candle[4]));
+      let currentPrice = prices[prices.length-1];
+
+      let rsi = calculRSI(prices);
+      let ema = calculEMA(prices);
+      let macdObj = calculMACD(prices);
+      let boll = calculBollinger(prices);
+
+      let decision = "Attente";
+      if (rsi < 30 && currentPrice > ema && macdObj.macd > macdObj.signal && currentPrice < boll.lower) {
+        decision = "Acheter";
+      } else if (rsi > 70 && currentPrice < ema && macdObj.macd < macdObj.signal && currentPrice > boll.upper) {
+        decision = "Vendre";
+      }
+      document.getElementById("resultat").innerText = decision;
+
+      // Graphique Prix + Bollinger
+      new Chart(document.getElementById('chartPrice'), {
+        type: 'line',
+        data: {
+          labels: prices.map((_,i)=>i),
+          datasets: [
+            { label: 'Prix', data: prices, borderColor: '#fff', fill: false },
+            { label: 'EMA', data: prices.map(()=>ema), borderColor: '#ffcc00', fill: false },
+            { label: 'Bollinger Haut', data: prices.map(()=>boll.upper), borderColor: '#00ff00', borderDash:[5,5], fill: false },
+            { label: 'Bollinger Bas', data: prices.map(()=>boll.lower), borderColor: '#ff0000', borderDash:[5,5], fill: false }
+          ]
+        },
+        options: { plugins: { legend: { labels: { color: '#fff' } } }, scales: { x: { ticks: { color: '#fff'} }, y: { ticks: { color: '#fff'} } } }
+      });
+
+      // Graphique RSI
+      new Chart(document.getElementById('chartRSI'), {
+        type: 'line',
+        data: {
+          labels: prices.map((_,i)=>i),
+          datasets: [{ label: 'RSI', data: prices.map(()=>rsi), borderColor: '#ffcc00', fill: false }]
+        },
+        options: { plugins: { legend: { labels: { color: '#fff' } } }, scales: { x: { ticks: { color: '#fff'} }, y: { ticks: { color: '#fff'} } } }
+      });
+
+      // Graphique MACD
+      new Chart(document.getElementById('chartMACD'), {
+        type: 'line',
+        data: {
+          labels: prices.map((_,i)=>i),
+          datasets: [
+            { label: 'MACD', data: prices.map(()=>macdObj.macd), borderColor: '#00ff00', fill: false },
+            { label: 'Signal', data: prices.map(()=>macdObj.signal), borderColor: '#ff0000', fill: false }
+          ]
+        },
+        options: { plugins: { legend: { labels: { color: '#fff' } } }, scales: { x: { ticks: { color: '#fff'} }, y: { ticks: { color: '#fff'} } } }
+      });
+    }
+  </script>
+</body>
+</html>
