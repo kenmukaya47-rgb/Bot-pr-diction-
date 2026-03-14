@@ -2,46 +2,63 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Bot Rapide Trading</title>
+  <title>Bot Futuriste Trading</title>
   <style>
-    body { font-family: Arial; background: #111; color: #fff; text-align: center; padding: 40px; }
-    h2 { color: #ffcc00; }
-    .bloc { background: #222; padding: 20px; border-radius: 10px; width: 350px; margin: auto; }
-    
-    /* Bouton rond animé */
+    body { font-family: Arial; background: #0a0a0a; color: #fff; text-align: center; padding: 40px; }
+    h2 { color: #00ffe0; text-shadow: 0 0 10px #00ffe0; }
+    .bloc { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px; width: 400px; margin: auto; box-shadow: 0 0 20px #00ffe0; }
+
+    /* Gros bouton rond futuriste */
     .btn-analyser {
-      width: 80px; height: 80px;
+      width: 120px; height: 120px;
       border-radius: 50%;
       background: conic-gradient(red, yellow, lime, cyan, magenta, red);
       border: none;
       cursor: pointer;
-      animation: spin 3s linear infinite;
+      animation: spin 4s linear infinite;
       font-weight: bold;
       color: #111;
+      font-size: 20px;
+      box-shadow: 0 0 30px #00ffe0;
     }
     @keyframes spin { 100% { transform: rotate(360deg); } }
-    
-    #resultat { font-size: 24px; margin-top: 20px; font-weight: bold; }
-    #analyse { margin-top: 20px; text-align: left; font-size: 14px; background:#333; padding:10px; border-radius:8px; }
+
+    select, input {
+      padding: 10px; border-radius: 8px; border: none; margin: 10px;
+      background: #222; color: #fff;
+    }
+
+    #analyse { margin-top: 20px; text-align: left; font-size: 14px; background:#111; padding:10px; border-radius:8px; box-shadow: 0 0 15px #00ffe0; }
+    #resultat { font-size: 28px; margin-top: 20px; font-weight: bold; text-shadow: 0 0 15px #fff; }
   </style>
 </head>
 <body>
-  <h2>⚡ Bot Rapide - Analyse Express</h2>
+  <h2>🚀 Bot Futuriste - Analyse Express</h2>
   
   <div class="bloc">
-    <label>Actif :</label><br>
-    <input type="text" id="asset" value="BTCUSDT"><br><br>
+    <label>Choisir Actif :</label><br>
+    <select id="asset">
+      <option value="BTCUSDT">BTC/USDT</option>
+      <option value="ETHUSDT">ETH/USDT</option>
+      <option value="EURUSDT">EUR/USD</option>
+      <option value="XAUUSDT">Or (XAU/USD)</option>
+    </select><br>
     
-    <label>Durée (secondes) :</label><br>
-    <input type="number" id="duration" value="5"><br><br>
+    <label>Durée :</label><br>
+    <select id="duration">
+      <option value="5">5 secondes</option>
+      <option value="10">10 secondes</option>
+      <option value="30">30 secondes</option>
+      <option value="60">1 minute</option>
+    </select><br><br>
     
-    <button class="btn-analyser" onclick="analyser()">Go</button>
+    <button class="btn-analyser" onclick="analyser()">GO</button>
     <div id="analyse">En attente d'analyse...</div>
     <div id="resultat"></div>
   </div>
 
   <script>
-    // RSI
+    // Fonctions indicateurs (RSI, EMA, Stoch, Bollinger, MACD, ATR)
     function calculRSI(prices, period = 5) {
       let gains = 0, losses = 0;
       for (let i = 1; i < period; i++) {
@@ -53,7 +70,6 @@
       let rs = avgGain / avgLoss;
       return 100 - (100 / (1 + rs));
     }
-    // EMA
     function calculEMA(prices, period = 5) {
       let k = 2 / (period + 1);
       let ema = prices[0];
@@ -62,7 +78,6 @@
       }
       return ema;
     }
-    // Stochastic
     function calculStoch(prices, period = 5) {
       let slice = prices.slice(-period);
       let high = Math.max(...slice);
@@ -70,7 +85,6 @@
       let current = prices[prices.length-1];
       return ((current - low) / (high - low)) * 100;
     }
-    // Bollinger
     function calculBollinger(prices, period = 5, mult = 2) {
       let slice = prices.slice(-period);
       let mean = slice.reduce((a,b) => a+b, 0) / period;
@@ -78,7 +92,6 @@
       let stdDev = Math.sqrt(variance);
       return { upper: mean + mult*stdDev, lower: mean - mult*stdDev };
     }
-    // MACD
     function calculMACD(prices, shortPeriod = 12, longPeriod = 26, signalPeriod = 9) {
       let emaShort = calculEMA(prices, shortPeriod);
       let emaLong = calculEMA(prices, longPeriod);
@@ -86,7 +99,6 @@
       let signal = calculEMA([macd], signalPeriod);
       return { macd, signal };
     }
-    // ATR
     function calculATR(data, period = 14) {
       let trs = [];
       for (let i = 1; i < data.length; i++) {
@@ -135,13 +147,8 @@
       if (votesAcheter >= 3) decision = "Acheter";
       else if (votesVendre >= 3) decision = "Vendre";
 
-      // Affichage avec couleur
+      // Affichage avec couleur et effet
       let res = document.getElementById("resultat");
       res.innerText = decision;
       if (decision === "Acheter") res.style.color = "lime";
-      else if (decision === "Vendre") res.style.color = "red";
-      else res.style.color = "yellow";
-    }
-  </script>
-</body>
-</html>
+      else if (decision === "Vendre") res
